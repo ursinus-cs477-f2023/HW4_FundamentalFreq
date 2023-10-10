@@ -42,7 +42,7 @@ def save_audio(x, sr, path):
     path: string
         Path to which to write file
     """
-    x = np.array(32768*x/np.max(np.abs(x)), dtype=np.int16)
+    x = np.array(32767*x/np.max(np.abs(x)), dtype=np.int16)
     wavfile.write(path, sr, x)
 
 
