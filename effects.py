@@ -48,7 +48,7 @@ def sonify_pure_tone(x, freqs, hop_length, sr):
         amp, y = amp[0:N], y[0:N]
     return amp*y
 
-def get_scale(root_note, major, fmin, fmax):
+def get_scale(root_note, major, fmin=100, fmax=2000):
     """
     Compute a list of frequencies that are involved in a scale
 
@@ -62,6 +62,11 @@ def get_scale(root_note, major, fmin, fmax):
         Minimum frequency to consider (in hz)
     fmax: float
         Maximum frequency to consider (in hz)
+    
+    Returns
+    -------
+    freqs: ndarray(N)
+        List of frequencies corresponding to allowed notes
     """
     root = root_note.split()[0].lower()
     roots = {"a":0, "b":2, "c":3, "d":5, "e":7, "f":8, "g":10}
@@ -94,8 +99,8 @@ def get_scale(root_note, major, fmin, fmax):
         i = (i + len(intervals))%len(intervals)
         note += intervals[i]
         i += 1
-
-    return np.array(lower + upper, dtype=int)
+    
+    return np.array(lower + upper)
 
 
 def autotune(x, freqs, hop_length, allowed_notes, hop_scale=8, n_iters=10, wiggle_amt=np.inf, wiggle_len=None):

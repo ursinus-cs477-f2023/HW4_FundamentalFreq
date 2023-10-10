@@ -94,6 +94,12 @@ def get_yin_freqs(x, frame_length, sr, hop_length=None, win_length=None, fmin=10
     
     Returns
     -------
+    freqs: list of lists of [float, float] 
+        List of of each frequency at a different threshold for each 
+        time window.  For instance, freqs[0] is a list of all 
+        [freq, thresh] frequencies at different thresholds at the
+        first time instant
+    
     """
     if not hop_length:
         hop_length = frame_length//4
