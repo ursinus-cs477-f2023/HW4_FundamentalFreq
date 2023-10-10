@@ -158,67 +158,58 @@ hann_fn = lambda win: 0.5*(1-np.cos(2*np.pi*np.arange(win)/win))
 # w =  2048
 # h = 128
 
-def stft(x, hop_length):
+def stft(x, w, h):
     """
-    Perform a Hann-windowed real STFT on audio samples,
-    assuming the hop length is half of the window length
+    Compute the complex Short-Time Fourier Transform (STFT)
+    using a Hann window
 
     Parameters
     ----------
-    x: ndarray(n_samples)
-        Audio samples
-    hop_length: int
-        Hop Length
-    
-    Returns
-    -------
-    S: ndarray(win_length//2+1, 1+2*(n_samples-win_length)/win_length)
-        Real windowed STFT
-    """
-    n_samples = x.size
-    win_length = hop_length*2
-    T = (n_samples-win_length)//hop_length+1
-
-    ## Take out each overlapping window of the signal
-    XW = np.zeros((T, win_length))
-    n_even = n_samples//win_length
-    XW[0::2, 0:win_length] = x[0:n_even*win_length].reshape((n_even, win_length))
-    n_odd = T - n_even
-    XW[1::2, 0:win_length] = x[hop_length:hop_length+n_odd*win_length].reshape((n_odd, win_length))
-    
-    # Apply hann window, followed by FFT
-    hann = hann_fn(win_length)
-    return np.fft.rfft((XW.T)*hann[:, None], axis=0)
-
-def istft(S, hop_length):
-    """
-    Invert a Hann-windowed real STFT of audio samples,
-    assuming the hop length is half of the window length
-
-    Parameters
-    ----------
-    S: ndarray(win_length//2+1, 1+2*(n_samples-win_length)/win_length)
-        Real windowed STFT
-    hop_length: int
+    x: ndarray(N)
+        Full audio clip of N samples
+    w: int
         Window length
+    h: int
+        Hop length
     
     Returns
     -------
-    X: torch.tensor(n_batches, n_samples)
-        Audio samples
+    ndarray(w, nwindows, dtype=np.complex) STFT
     """
-    win_length = hop_length*2
-    T = S.shape[1]
-    n_samples = T*hop_length + win_length - 1
-    xinv = np.fft.irfft(S, axis=0)
-    xeven = (xinv[:, 0::2].T).flatten()
-    xodd  = (xinv[:, 1::2].T).flatten()
-    x = np.zeros(n_samples)
-    x[0:xeven.size] = xeven
-    x[hop_length:hop_length+xodd.size] += xodd
-    return x
+    N = len(x)
+    nwin = int(np.ceil((N-w)/h))+1
+    S = np.zeros((w//2+1, nwin), dtype=complex)
+    hann = hann_fn(w)
+    for j in range(nwin):
+        xj = x[h*j:h*j+w]
+        S[:, j] = np.fft.rfft(hann[0:xj.size]*xj, w)
+    return S
 
-def griffin_lim(SAbs, hop_length, n_iters=10):
+def istft(S, w, h):
+    """
+    Compute the complex inverse Short-Time Fourier Transform (STFT)
+    Parameters
+    ----------
+    S: ndarray(w, nwindows, dtype=np.complex)
+        Complex spectrogram
+    w: int
+        Window length
+    h: int
+        Hop length
+    
+    Returns
+    -------
+    y: ndarray(N)
+        Audio samples of the inverted STFT
+    """
+    N = (S.shape[1]-1)*h + w # Number of samples in result
+    y = np.zeros(N)
+    for j in range(S.shape[1]):
+        y[j*h:j*h+w] += np.fft.irfft(S[:, j])
+    y /= (w/h/2)
+    return y
+
+def griffin_lim(SAbs, w, h, n_iters=10):
     """
     Perform Griffin-Lim inversion on a magnitude spectrogram
 
@@ -226,12 +217,14 @@ def griffin_lim(SAbs, hop_length, n_iters=10):
     ----------
     S: ndarray(win_length//2+1, 1+2*(n_samples-win_length)/win_length)
         Real windowed STFT
-    hop_length: int
+    w: int
         Window length
+    h: int
+        Hop length
     """
     A = SAbs
     for _ in range(n_iters):
-        S = stft(istft(A, hop_length), hop_length)
+        S = stft(istft(A, w, h), w, h)
         P = np.arctan2(np.imag(S), np.real(S))
         A = np.abs(SAbs)*np.exp(1j*P)
-    return istft(A, hop_length)
+    return istft(A, w, h)
